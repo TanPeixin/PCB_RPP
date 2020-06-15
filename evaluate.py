@@ -6,7 +6,8 @@ import os
 import  argparse
 
 parser = argparse.ArgumentParser(description='Evaluating')
-parser.add_argument('--result_mat', default='./result/RPP_G_result.mat', type=str, help='save result dir')
+parser.add_argument('--result_mat', default='./result/RPP_H_result.mat', type=str, help='save result dir')
+#parser.add_argument('--result_mat', default='./result/RPP_G_result.mat', type=str, help='save result dir')
 args = parser.parse_args()
 #######################################################################
 # Evaluate

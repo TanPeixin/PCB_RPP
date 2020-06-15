@@ -22,12 +22,16 @@ from model import PCB, PCB_test
 parser = argparse.ArgumentParser(description='Testing')
 parser.add_argument('--gpu_ids', default='0', type=str,help='gpu_ids: e.g. 0  0,1,2  0,2')
 parser.add_argument('--which_epoch', default='last', type=str, help='0,1,2,3...or last')
-parser.add_argument('--test_dir', default='/home/brl/USER/fzc/PCB_RPP/Market/pytorch',type=str,
+parser.add_argument('--test_dir', default='../data/Market/pytorch',type=str,
                     help='./test_data')
+# parser.add_argument('--test_dir', default='/home/student/tpx/workspace/ML/BPM/data/Market/pytorch',type=str,
+#                     help='./test_data')
 parser.add_argument('--model_dir', default='./model/', type=str, help='save model dir')
 parser.add_argument('--result_dir', default='./result/', type=str, help='save result dir')
-parser.add_argument('--stage', default='PCB', type=str, help='save model path')
-parser.add_argument('--RPP', action='store_true', help='use RPP', default=False)
+parser.add_argument('--stage', default='full', type=str, help='save model path')
+#parser.add_argument('--stage', default='PCB', type=str, help='save model path')
+parser.add_argument('--RPP', action='store_true', help='use RPP', default=True)
+#parser.add_argument('--RPP', action='store_true', help='use RPP', default=False)
 parser.add_argument('--batchsize', default=32, type=int, help='batch_size')
 parser.add_argument('--feature_H', action='store_true', help='extract feature_H', default=True)
 args = parser.parse_args()

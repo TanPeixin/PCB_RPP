@@ -27,9 +27,9 @@ version = torch.__version__
 ######################################################################
 # Options #
 parser = argparse.ArgumentParser(description='Training')
-parser.add_argument('--gpu_ids', default='0', type=str, help='gpu_ids: e.g. 0  0,1,2  0,2')
+parser.add_argument('--gpu_ids', default='0,1', type=str, help='gpu_ids: e.g. 0  0,1,2  0,2')
 parser.add_argument('--save_dir', default='./model/', type=str, help='save model dir')
-parser.add_argument('--data_dir', default='D:/workspace/ML/BPM/data/Market/pytorch', type=str, help='training dir path')
+parser.add_argument('--data_dir', default='../data/Market/pytorch', type=str, help='training dir path')
 parser.add_argument('--train_all', action='store_true', default=True, help='use all training data')
 parser.add_argument('--batchsize', default=32, type=int, help='batch_size')
 parser.add_argument('--RPP', action='store_true', help='use RPP', default=True)

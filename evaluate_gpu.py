@@ -8,7 +8,7 @@ import argparse
 ######################################################################
 #
 parser = argparse.ArgumentParser(description='Evaluating')
-parser.add_argument('--result_mat', default='./result/PCB_H_result.mat', type=str, help='save result dir')
+parser.add_argument('--result_mat', default='./result/RPP_H_result.mat', type=str, help='save result dir')
 parser.add_argument('--gpu_ids', default='0', type=int,help='gpu_ids: e.g. 0')
 args = parser.parse_args()
 
