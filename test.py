@@ -22,10 +22,10 @@ from model import PCB, PCB_test
 parser = argparse.ArgumentParser(description='Testing')
 parser.add_argument('--gpu_ids', default='0', type=str,help='gpu_ids: e.g. 0  0,1,2  0,2')
 parser.add_argument('--which_epoch', default='last', type=str, help='0,1,2,3...or last')
+# parser.add_argument('--test_dir', default='../data/cuhk03_release/pytorch',type=str,
+#                     help='./test_data')
 parser.add_argument('--test_dir', default='../data/Market/pytorch',type=str,
                     help='./test_data')
-# parser.add_argument('--test_dir', default='/home/student/tpx/workspace/ML/BPM/data/Market/pytorch',type=str,
-#                     help='./test_data')
 parser.add_argument('--model_dir', default='./model/', type=str, help='save model dir')
 parser.add_argument('--result_dir', default='./result/', type=str, help='save result dir')
 parser.add_argument('--stage', default='full', type=str, help='save model path')
@@ -154,7 +154,8 @@ query_cam,query_label = get_id(query_path)
 print('-------test-----------')
 
 
-model_structure = PCB(751)
+model_structure = PCB(767)
+# model_structure = PCB(751)
 if args.RPP:
     model_structure = model_structure.convert_to_rpp()
 

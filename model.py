@@ -58,14 +58,33 @@ class ClassBlock(nn.Module):
         return x
 
 # Define the RPP layers
-class RPP(nn.Module):
+class RPPConv(nn.Module):
     def __init__(self):
-        super(RPP, self).__init__()
-        self.part = 6
+        super(RPPConv, self).__init__()
         add_block = []
         add_block += [nn.Conv2d(2048, 6, kernel_size=1, bias=False)]
         add_block = nn.Sequential(*add_block)
         add_block.apply(weights_init_kaiming)
+
+        self.add_block = add_block
+
+    def forward(self, x):
+        x = self.add_block(x)
+        return x
+
+class RPP(nn.Module):
+    def __init__(self):
+        super(RPP, self).__init__()
+        self.part = 6
+        # add_block = []
+        # add_block += [nn.Conv2d(2048, 6, kernel_size=1, bias=False)]
+        # add_block = nn.Sequential(*add_block)
+        # add_block.apply(weights_init_kaiming)
+
+        # define 6 Conv2d
+        add_block = nn.ModuleList()
+        for i in range(self.part):
+            add_block.append(RPPConv())
 
         norm_block = []
         norm_block += [nn.BatchNorm2d(2048)]
@@ -81,8 +100,18 @@ class RPP(nn.Module):
 
 
     def forward(self, x):
-        w = self.add_block(x)
+        # w = self.add_block(x)
+        # p = self.softmax(w)
+
+        w_temp = []
+        #print(x.shape)
+        x_split = torch.split(x[:, :, :, :], int(24/6), dim=2)
+        for i in range(self.part): #NCHW
+            x_i = x_split[i]
+            w_temp.append(self.add_block[i](x_i))
+        w = torch.cat(w_temp, dim=2)
         p = self.softmax(w)
+
         y = []
         for i in range(self.part):
             p_i = p[:, i, :, :]
@@ -177,6 +206,6 @@ class PCB_test(nn.Module):
 net = PCB(751)
 net = net.convert_to_rpp()
 print(net)
-input = Variable(torch.FloatTensor(8, 3, 7, 7))
+input = Variable(torch.FloatTensor(8, 3, 384, 128))
 output = net(input)
 # print(output[0].shape)

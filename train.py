@@ -27,11 +27,13 @@ version = torch.__version__
 ######################################################################
 # Options #
 parser = argparse.ArgumentParser(description='Training')
-parser.add_argument('--gpu_ids', default='0,1', type=str, help='gpu_ids: e.g. 0  0,1,2  0,2')
+parser.add_argument('--gpu_ids', default='0', type=str, help='gpu_ids: e.g. 0  0,1,2  0,2')
 parser.add_argument('--save_dir', default='./model/', type=str, help='save model dir')
-parser.add_argument('--data_dir', default='../data/Market/pytorch', type=str, help='training dir path')
+parser.add_argument('--data_dir', default='../data/cuhk03_release/pytorch', type=str, help='training dir path')
+#parser.add_argument('--data_dir', default='../data/Market/pytorch', type=str, help='training dir path')
 parser.add_argument('--train_all', action='store_true', default=True, help='use all training data')
-parser.add_argument('--batchsize', default=32, type=int, help='batch_size')
+#parser.add_argument('--train_all', action='store_true', default=True, help='use all training data')
+parser.add_argument('--batchsize', default=32, type=int, help='batch_size')#32
 parser.add_argument('--RPP', action='store_true', help='use RPP', default=True)
 args = parser.parse_args()
 
@@ -126,7 +128,7 @@ def train_model(model, criterion, optimizer, scheduler, log_file, stage, num_epo
 
         # Each epoch has a training and validation phase
         # Due to the GPU memory limitations, we don't use the 'val' dataset
-        for phase in ['train']:
+        for phase in ['train', 'val']:#, 'val'
             if phase == 'train':
                 model.train(True)  # Set model to training mode
             else:
@@ -184,8 +186,8 @@ def train_model(model, criterion, optimizer, scheduler, log_file, stage, num_epo
             log_file.write('{} epoch : {} Loss: {:.4f} Acc: {:.4f}'.format(epoch, phase,
                                                                            epoch_loss, epoch_acc) + '\n')
 
-            # if phase == 'val'
-            if phase == 'train':
+            if phase == 'val':
+            #if phase == 'train':
                 last_model_wts = model.state_dict()
                 if epoch % 10 == 9:
                     save_network(model, epoch, stage)
@@ -318,7 +320,7 @@ if __name__ == '__main__':
 
     criterion = nn.CrossEntropyLoss()
 
-    model = pcb_train(model, criterion, f, stage, 20) #60
+    model = pcb_train(model, criterion, f, stage, 60) #60
 
     ############################
     # step2&3: RPP training #
