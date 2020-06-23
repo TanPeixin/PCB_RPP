@@ -5,15 +5,8 @@ import time
 import os
 import argparse
 
-######################################################################
-#
-parser = argparse.ArgumentParser(description='Evaluating')
-parser.add_argument('--result_mat', default='./result/RPP_H_result.mat', type=str, help='save result dir')
-parser.add_argument('--gpu_ids', default='0', type=int,help='gpu_ids: e.g. 0')
-args = parser.parse_args()
+import multiprocessing
 
-# setGPU
-torch.cuda.set_device(args.gpu_ids)
 #######################################################################
 # Evaluate
 def evaluate(qf,ql,qc,gf,gl,gc):
@@ -37,7 +30,6 @@ def evaluate(qf,ql,qc,gf,gl,gc):
     
     CMC_tmp = compute_mAP(index, good_index, junk_index)
     return CMC_tmp
-
 
 def compute_mAP(index, good_index, junk_index):
     ap = 0
@@ -69,32 +61,45 @@ def compute_mAP(index, good_index, junk_index):
     return ap, cmc
 
 ######################################################################
-result = scipy.io.loadmat(args.result_mat)
-query_feature = torch.FloatTensor(result['query_f'])
-query_cam = result['query_cam'][0]
-query_label = result['query_label'][0]
-gallery_feature = torch.FloatTensor(result['gallery_f'])
-gallery_cam = result['gallery_cam'][0]
-gallery_label = result['gallery_label'][0]
+if __name__ == '__main__':
+    multiprocessing.freeze_support()
 
+    ######################################################################
+    #
+    parser = argparse.ArgumentParser(description='Evaluating')
+    parser.add_argument('--result_mat', default='./result/RPP_H_result.mat', type=str, help='save result dir')
+    parser.add_argument('--gpu_ids', default='0', type=int, help='gpu_ids: e.g. 0')
+    args = parser.parse_args()
 
+    # setGPU
+    torch.cuda.set_device(args.gpu_ids)
 
-query_feature = query_feature.cuda()
-gallery_feature = gallery_feature.cuda()
+    print('-------evaluate-----------')
 
-print(query_feature.shape)
-CMC = torch.IntTensor(len(gallery_label)).zero_()
-ap = 0.0
-#print(query_label)
-for i in range(len(query_label)):
-    ap_tmp, CMC_tmp = evaluate(query_feature[i],query_label[i],query_cam[i],gallery_feature,gallery_label,gallery_cam)
-    if CMC_tmp[0]==-1:
-        continue
-    CMC = CMC + CMC_tmp
-    ap += ap_tmp
-    #print(i, CMC_tmp[0])
+    result = scipy.io.loadmat(args.result_mat)
+    query_feature = torch.FloatTensor(result['query_f'])
+    query_cam = result['query_cam'][0]
+    query_label = result['query_label'][0]
+    gallery_feature = torch.FloatTensor(result['gallery_f'])
+    gallery_cam = result['gallery_cam'][0]
+    gallery_label = result['gallery_label'][0]
 
-CMC = CMC.float()
-CMC = CMC/len(query_label) #average CMC
-print('Rank@1:%f Rank@5:%f Rank@10:%f mAP:%f'%(CMC[0],CMC[4],CMC[9],ap/len(query_label)))
+    query_feature = query_feature.cuda()
+    gallery_feature = gallery_feature.cuda()
+
+    print(query_feature.shape)
+    CMC = torch.IntTensor(len(gallery_label)).zero_()
+    ap = 0.0
+    #print(query_label)
+    for i in range(len(query_label)):
+        ap_tmp, CMC_tmp = evaluate(query_feature[i],query_label[i],query_cam[i],gallery_feature,gallery_label,gallery_cam)
+        if CMC_tmp[0]==-1:
+            continue
+        CMC = CMC + CMC_tmp
+        ap += ap_tmp
+        #print(i, CMC_tmp[0])
+
+    CMC = CMC.float()
+    CMC = CMC/len(query_label) #average CMC
+    print('Rank@1:%f Rank@5:%f Rank@10:%f mAP:%f'%(CMC[0],CMC[4],CMC[9],ap/len(query_label)))
 

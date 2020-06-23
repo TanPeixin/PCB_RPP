@@ -2,7 +2,7 @@ import os
 from shutil import copyfile
 
 # You only need to change this line to your dataset download path
-download_path = 'D:/workspace/ML/BPM/data/Market'
+download_path = '../data/Market'
 
 if not os.path.isdir(download_path):
     print('please change the download_path')

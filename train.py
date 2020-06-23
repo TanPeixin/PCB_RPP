@@ -21,93 +21,18 @@ import os
 from model import PCB
 import json
 from shutil import copyfile
+import pkg_resources
 
-version = torch.__version__
+import multiprocessing
 
-######################################################################
-# Options #
-parser = argparse.ArgumentParser(description='Training')
-parser.add_argument('--gpu_ids', default='0', type=str, help='gpu_ids: e.g. 0  0,1,2  0,2')
-parser.add_argument('--save_dir', default='./model/', type=str, help='save model dir')
-parser.add_argument('--data_dir', default='../data/cuhk03_release/pytorch', type=str, help='training dir path')
-#parser.add_argument('--data_dir', default='../data/Market/pytorch', type=str, help='training dir path')
-parser.add_argument('--train_all', action='store_true', default=True, help='use all training data')
-#parser.add_argument('--train_all', action='store_true', default=True, help='use all training data')
-parser.add_argument('--batchsize', default=32, type=int, help='batch_size')#32
-parser.add_argument('--RPP', action='store_true', help='use RPP', default=True)
-args = parser.parse_args()
-
-# setGPU #
-use_gpu = torch.cuda.is_available()
-str_ids = args.gpu_ids.split(',')
-gpu_ids = []
-for str_id in str_ids:
-    gid = int(str_id)
-    if gid >= 0:
-        gpu_ids.append(gid)
-
-is_parallel_train = False
-if len(gpu_ids) > 1:
-    is_parallel_train = True
+#os.environ["PYTORCH_JIT"] = "0"
 
 def get_net(is_parallel, net):
     return net.module if is_parallel else net
 
-# setSeed #
-seed = 1994
-torch.manual_seed(seed)
-torch.cuda.manual_seed(seed)
-
-# ------ #
-data_dir = args.data_dir
-save_dir = args.save_dir
-if not os.path.isdir(save_dir):
-    os.mkdir(save_dir)
-
-######################################################################
-# Load Data
-# ---------
-#
-
-transform_train_list = [
-    transforms.Resize((384, 128), interpolation=3),
-    transforms.RandomHorizontalFlip(),
-    transforms.ToTensor(),
-    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-]
-transform_val_list = [
-    transforms.Resize(size=(384, 128), interpolation=3),  # Image.BICUBIC
-    transforms.ToTensor(),
-    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-]
-
-data_transforms = {
-    'train': transforms.Compose(transform_train_list),
-    'val': transforms.Compose(transform_val_list),
-}
-
-train_all = ''
-if args.train_all:
-    train_all = '_all'
-
-image_datasets = {}
-image_datasets['train'] = datasets.ImageFolder(os.path.join(data_dir, 'train' + train_all),
-                                               data_transforms['train'])
-image_datasets['val'] = datasets.ImageFolder(os.path.join(data_dir, 'val'),
-                                             data_transforms['val'])
-
-dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=args.batchsize,
-                                              shuffle=True, num_workers=8)  # 8 workers may work faster
-               for x in ['train', 'val']}
-dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
-class_names = image_datasets['train'].classes
-
 ######################################################################
 # Training the model
 # ------------------
-#
-# Now, let's write a general function to train a model. Here, we will
-# illustrate:
 #
 # -  Scheduling the learning rate
 # -  Saving the best model
@@ -205,7 +130,6 @@ def train_model(model, criterion, optimizer, scheduler, log_file, stage, num_epo
     save_network(model, 'last', stage)
     return model
 
-
 ######################################################################
 # Save model
 # ---------------------------
@@ -235,14 +159,13 @@ def load_network(network, stage):
 # Step1 : train the PCB model
 # According to original paper, we set the difference learning rate for difference layers.
 
-
 def pcb_train(model, criterion, log_file, stage, num_epoch):
     ignored_params = list(map(id, get_net(is_parallel_train, model).classifiers.parameters()))
 
     base_params = filter(lambda p: id(p) not in ignored_params, get_net(is_parallel_train, model).parameters())
     optimizer_ft = optim.SGD([
-        {'params': base_params, 'lr': 0.01},
-        {'params': get_net(is_parallel_train, model).classifiers.parameters(), 'lr': 0.1},
+        {'params': base_params, 'lr': 0.1*(args.PCB_LearnRate)},
+        {'params': get_net(is_parallel_train, model).classifiers.parameters(), 'lr': args.PCB_LearnRate},
     ], weight_decay=5e-4, momentum=0.9, nesterov=True)
 
     # Decay LR by a factor of 0.1 every 40 epochs
@@ -250,7 +173,6 @@ def pcb_train(model, criterion, log_file, stage, num_epoch):
     model = train_model(model, criterion, optimizer_ft, exp_lr_scheduler,
                         log_file, stage, num_epochs=num_epoch)
     return model
-
 
 ######################################################################
 # RPP train
@@ -266,7 +188,7 @@ def rpp_train(model, criterion, log_file, stage, num_epoch):
     #     {'params': base_params, 'lr': 0.00},
     #     {'params': get_net(opt, model).avgpool.parameters(), 'lr': 0.01},
     # ], weight_decay=5e-4, momentum=0.9, nesterov=True)
-    optimizer_ft = optim.SGD(get_net(is_parallel_train, model).avgpool.parameters(), lr=0.01,
+    optimizer_ft = optim.SGD(get_net(is_parallel_train, model).avgpool.parameters(), lr=args.RPP_LearnRate,
                               weight_decay=5e-4, momentum=0.9, nesterov=True)
 
     # Decay LR by a factor of 0.1 every 100 epochs (never use)
@@ -287,9 +209,9 @@ def full_train(model, criterion, log_file, stage, num_epoch):
 
     base_params = filter(lambda p: id(p) not in ignored_params, get_net(is_parallel_train, model).parameters())
     optimizer_ft = optim.SGD([
-        {'params': base_params, 'lr': 0.001},
-        {'params': get_net(is_parallel_train, model).classifiers.parameters(), 'lr': 0.01},
-        {'params': get_net(is_parallel_train, model).avgpool.parameters(), 'lr': 0.01},
+        {'params': base_params, 'lr': 0.1*(args.full_LearnRate)},
+        {'params': get_net(is_parallel_train, model).classifiers.parameters(), 'lr': args.full_LearnRate},
+        {'params': get_net(is_parallel_train, model).avgpool.parameters(), 'lr': args.full_LearnRate},
     ], weight_decay=5e-4, momentum=0.9, nesterov=True)
 
     # Decay LR by a factor of 0.1 every 100 epochs (never use)
@@ -298,11 +220,103 @@ def full_train(model, criterion, log_file, stage, num_epoch):
                         log_file, stage, num_epochs=num_epoch)
     return model
 
-
 ######################################################################
 # Start training
 # ---------------------------
 if __name__ == '__main__':
+    multiprocessing.freeze_support()
+
+    version = torch.__version__
+    ######################################################################
+    # Options #
+    parser = argparse.ArgumentParser(description='Training')
+    parser.add_argument('--gpu_ids', default='0', type=str, help='gpu_ids: e.g. 0  0,1,2  0,2')
+
+    if os.name == 'nt':  #win
+        parser.add_argument('--save_dir', default='./model/',
+                            type=str, help='save model dir')
+        parser.add_argument('--data_dir', default='../data/Market/pytorch', type=str, # D:/workspace/ML/BPM/project
+                        help='training dir path')
+    elif os.name == 'posix':  #linux
+        parser.add_argument('--save_dir', default='./model/',
+                            type=str, help='save model dir')
+        parser.add_argument('--data_dir', default='../data/Market/pytorch', type=str,
+                        help='training dir path')
+    # parser.add_argument('--data_dir', default='../data/cuhk03_release/pytorch', type=str, help='training dir path')
+    # parser.add_argument('--data_dir', default='../data/Market/pytorch', type=str, help='training dir path')
+
+    parser.add_argument('--train_all', action='store_true', default=True, help='use all training data')
+    parser.add_argument('--PCB_epoch', default=60, type=int, help='PCB epoch')  # 60
+    parser.add_argument('--RPP_epoch', default=5, type=int, help='RPP epoch')
+    parser.add_argument('--full_epoch', default=10, type=int, help='full epoch')
+    parser.add_argument('--PCB_LearnRate', default=0.1, type=float, help='PCB learning rate')
+    parser.add_argument('--RPP_LearnRate', default=0.01, type=float, help='RPP learning rate')
+    parser.add_argument('--full_LearnRate', default=0.01, type=float, help='full learning rate')
+    parser.add_argument('--batchsize', default=32, type=int, help='batch_size')  # 32
+    parser.add_argument('--RPP', action='store_true', help='use RPP', default=True)
+    parser.add_argument('--jump_to_RPP', default=False, action='store_true', help='ignore the PCB train')
+    args = parser.parse_args()
+
+    # setGPU #
+    use_gpu = torch.cuda.is_available()
+    str_ids = args.gpu_ids.split(',')
+    gpu_ids = []
+    for str_id in str_ids:
+        gid = int(str_id)
+        if gid >= 0:
+            gpu_ids.append(gid)
+
+    is_parallel_train = False
+    if len(gpu_ids) > 1:
+        is_parallel_train = True
+
+    # setSeed #
+    seed = 1994
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+
+    # ------ #
+    data_dir = args.data_dir
+    save_dir = args.save_dir
+    if not os.path.isdir(save_dir):
+        os.mkdir(save_dir)
+
+    ######################################################################
+    # Load Data
+    # ---------
+    #
+    transform_train_list = [
+        transforms.Resize((384, 128), interpolation=3),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ]
+    transform_val_list = [
+        transforms.Resize(size=(384, 128), interpolation=3),  # Image.BICUBIC
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ]
+
+    data_transforms = {
+        'train': transforms.Compose(transform_train_list),
+        'val': transforms.Compose(transform_val_list),
+    }
+
+    train_all = ''
+    if args.train_all:
+        train_all = '_all'
+
+    image_datasets = {}
+    image_datasets['train'] = datasets.ImageFolder(os.path.join(data_dir, 'train' + train_all),
+                                                   data_transforms['train'])
+    image_datasets['val'] = datasets.ImageFolder(os.path.join(data_dir, 'val'),
+                                                 data_transforms['val'])
+
+    dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=args.batchsize,
+                                                  shuffle=True, num_workers=8)  # 8 workers may work faster
+                   for x in ['train', 'val']}
+    dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
+    class_names = image_datasets['train'].classes
 
     # Record the training information #
     f = open(args.save_dir + 'train_log.txt', 'w')
@@ -320,27 +334,40 @@ if __name__ == '__main__':
 
     criterion = nn.CrossEntropyLoss()
 
-    model = pcb_train(model, criterion, f, stage, 60) #60
+    if args.jump_to_RPP==True:
+        trained_model = PCB(len(class_names))
+        trained_model = load_network(trained_model, 'PCB')
+        model = trained_model
+    else:
+        print('-------PCB train-----------')
+        model = pcb_train(model, criterion, f, stage, args.PCB_epoch) #60
 
     ############################
     # step2&3: RPP training #
     if args.RPP:
         stage = 'RPP'
-        model = get_net(is_parallel_train, model).convert_to_rpp()
+        if args.jump_to_RPP:
+            model = model.convert_to_rpp()
+        else:
+            model = get_net(is_parallel_train, model).convert_to_rpp()
+
         if use_gpu:
             model = model.cuda()
         if is_parallel_train:
             model = nn.DataParallel(model, device_ids=gpu_ids)
 
-        model = rpp_train(model, criterion, f, stage, 5)
+        print('-------RPP train-----------')
+        model = rpp_train(model, criterion, f, stage, args.RPP_epoch)
 
         ############################
         # step4: whole net training #
         stage = 'full'
 
-        full_train(model, criterion, f, stage, 10)
+        print('-------full train-----------')
+        full_train(model, criterion, f, stage, args.full_epoch)
     f.close()
 
+    #input('please press enter')
 
 
 

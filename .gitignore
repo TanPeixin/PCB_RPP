@@ -130,4 +130,5 @@ dmypy.json
 
 #my ignore
 model/
+result/
 .idea/
